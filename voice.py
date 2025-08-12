@@ -1,67 +1,38 @@
+import gradio as gr
 import os
-from flask import Flask, request, render_template_string, send_file
 from TTS.api import TTS
-from pydub import AudioSegment
 
-# -------------- CONFIG --------------
-VOICE_SAMPLE = "audio [vocals].mp3"  # Your clean voice sample
-OUTPUT_WAV = "output.wav"
-MODEL_NAME = "tts_models/multilingual/multi-dataset/your_voice_hindi"
-# -------------------------------------
+# Pretrained multi-speaker TTS model
+model_name = TTS.list_models()[0]  # पहला मॉडल ले रहा हूँ, आप चाहें तो specific चुनें
+tts = TTS(model_name=model_name, progress_bar=False, gpu=False)
 
-# Step 1: Train voice cloning model (Transfer Learning from multilingual model)
-print("[1/3] Loading base multilingual model (Hindi-capable)...")
-tts = TTS(model_name="tts_models/multilingual/multi-dataset/your_tts", progress_bar=True, gpu=False)
+def clone_and_tts(text, speaker_wav):
+    if not text.strip():
+        return "Error: टेक्स्ट खाली है!"
+    if not speaker_wav:
+        return "Error: आवाज़ की फ़ाइल अपलोड करें!"
 
-print("[2/3] Fine-tuning on your voice sample...")
-tts.tts_to_file(
-    text="यह एक नमूना वाक्य है।",  # Sample Hindi text to help adaptation
-    file_path=OUTPUT_WAV,
-    speaker_wav=VOICE_SAMPLE,
-    language="hi"
-)
-# NOTE: Coqui TTS does not need heavy 'training' for voice cloning — it adapts instantly from sample
+    # आउटपुट फाइल
+    output_path = "output.wav"
 
-# Step 3: Setup Flask Web UI
-print("[3/3] Starting Web UI...")
+    # हिंदी टेक्स्ट को आपकी आवाज़ में कन्वर्ट करें
+    tts.tts_to_file(
+        text=text,
+        speaker_wav=speaker_wav,
+        language="hi",
+        file_path=output_path
+    )
+    return output_path
 
-app = Flask(__name__)
-HTML_PAGE = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Hindi Voice Clone TTS</title>
-</head>
-<body style="font-family:sans-serif;">
-    <h2>Type Hindi text below and generate speech in your cloned voice</h2>
-    <form action="/" method="post">
-        <textarea name="text" rows="4" cols="60" placeholder="हिन्दी में लिखें..." required></textarea><br><br>
-        <button type="submit">Generate Speech</button>
-    </form>
-    {% if audio_file %}
-        <h3>Generated Audio:</h3>
-        <audio controls>
-            <source src="{{ audio_file }}" type="audio/wav">
-        </audio>
-    {% endif %}
-</body>
-</html>
-"""
+# Gradio WebUI
+with gr.Blocks() as demo:
+    gr.Markdown("## 🎤 Voice Cloning Hindi TTS WebUI")
+    with gr.Row():
+        text = gr.Textbox(label="हिंदी टेक्स्ट दर्ज करें", placeholder="यहाँ अपना हिंदी टेक्स्ट लिखें...")
+        speaker_wav = gr.Audio(label="आपकी आवाज़ की WAV फ़ाइल", type="filepath")
+    btn = gr.Button("Generate Speech")
+    output_audio = gr.Audio(label="Output Speech", type="filepath")
 
-@app.route("/", methods=["GET", "POST"])
-def index():
-    audio_file = None
-    if request.method == "POST":
-        text = request.form["text"]
-        output_file = OUTPUT_WAV
-        tts.tts_to_file(
-            text=text,
-            file_path=output_file,
-            speaker_wav=VOICE_SAMPLE,
-            language="hi"
-        )
-        audio_file = "output.wav"
-    return render_template_string(HTML_PAGE, audio_file=audio_file)
+    btn.click(fn=clone_and_tts, inputs=[text, speaker_wav], outputs=output_audio)
 
-if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000)
+demo.launch()
