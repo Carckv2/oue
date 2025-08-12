@@ -1,0 +1,13 @@
+flask==3.0.3
+TTS==0.22.0
+pydub==0.25.1
+anyascii==0.3.2
+bangla==0.0.2
+requests==2.32.3
+numpy==1.26.4
+scipy==1.12.0
+soundfile==0.12.1
+numba==0.57.1
+torch==2.2.2+cpu
+torchaudio==2.2.2+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
